@@ -16,35 +16,11 @@ def eval_ast(ast, env):
     if isinstance(ast, MalAtom):
         #print "env lookup:", ast.name
         return env.get(ast.name)
-    elif isinstance(ast, MalVector):
-        new_vector = MalVector()
-        for i in ast.lst:
-            new_vector.append(eval_ast(i, env))
-        return new_vector
     elif isinstance(ast, MalList):
-        #print "eval list"
-        fst_ = ast[0]
-        # print type(fst_)
-        fst = fst_.name
-        if fst == 'def!':
-            v = eval_ast(ast[2], env)
-            env.set(ast[1].name, v)
-            return v
-        elif fst == 'let*':
-            new_env = Env(outer=env)
-            bind_lst = ast[1]
-            for i in range(bind_lst.length()/2):
-                k = bind_lst[2*i]
-                v = eval_ast(bind_lst[2*i+1], new_env)
-                #print "setting %r=%r" % (k,v)
-                new_env.set(k, v)
-            return eval_ast(ast[2], new_env)
-        else:
-            # Evaluate form for function application
-            new_list = MalList()
-            for i in ast.lst:
-                new_list.append(eval_ast(i, env))
-            return APPLY(new_list)
+        new_obj = type(ast)()
+        for i in ast.lst:
+            new_obj.append(eval_ast(i, env))
+        return new_obj
     else:
         return ast
 
@@ -53,13 +29,35 @@ def APPLY(lst):
     return lst.first()(*lst.rest())
 
 def EVAL(x, env):
-    if isinstance(x, MalList):
-        if x.length() == 0:
-            return x
-        else:
-            return eval_ast(x, env)
+    if type(x) != MalList: # not isinstance(x, MalList):
+        return eval_ast(x, env)
 
-    return eval_ast(x, env)
+    if x.length() == 0:
+        return x
+
+    fst_ = x[0]
+    fst = fst_.name
+
+    if fst == 'def!':
+        v = EVAL(x[2], env)
+        env.set(x[1].name, v)
+        return v
+    elif fst == 'let*':
+        new_env = Env(outer=env)
+        bind_lst = x[1]
+        for i in range(bind_lst.length()/2):
+            k = bind_lst[2*i]
+            v = EVAL(bind_lst[2*i+1], new_env)
+            #print "setting %r=%r" % (k,v)
+            new_env.set(k, v)
+        return EVAL(x[2], new_env)
+    else:
+        # Evaluate form for function application
+        new_list = MalList()
+        for i in x.lst:
+            new_list.append(EVAL(i, env))
+        return APPLY(new_list)
+
 
 def READ(x):
     r = reader.Reader(x)
