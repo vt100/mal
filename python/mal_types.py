@@ -26,11 +26,14 @@ class MalVector(MalList):
         return "[%s]" %  " ".join([str(i) for i in self.lst])
 
 class MalAtom(MalType):
-    def __init__(self, name):
-        self.name = name
-    def __str__(self):
-        #return "atom(%s)" % self.name
-        return self.name or ""
+    pass
+
+class MalNil(MalType):
+    pass
+
+class MalBool(MalType):
+    def __init__(self, val):
+        self.value = value
 
 class MalSymbol(MalType):
     def __init__(self, name):

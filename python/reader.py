@@ -70,4 +70,13 @@ def read_atom(reader):
     if token[0] in "0123456789":
         return int(token)
 
-    return MalAtom(token)
+    if token == "true":
+        return MalBool(True)
+
+    if token == "false":
+        return MalBool(False)
+
+    if token == "nil":
+        return MalNil()
+
+    return MalSymbol(token)

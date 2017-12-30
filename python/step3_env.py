@@ -13,7 +13,7 @@ for (k,v) in {'+': lambda a,b: a+b,
     repl_env.set(k,v)
 
 def eval_ast(ast, env):
-    if isinstance(ast, MalAtom):
+    if isinstance(ast, MalSymbol):
         #print "env lookup:", ast.name
         return env.get(ast.name)
     elif isinstance(ast, MalList):

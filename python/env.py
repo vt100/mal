@@ -9,11 +9,11 @@ class Env(object):
         if k in self.d:
             return self.d[k]
         elif self.outer:
-            #print self.d
+            # print "missed %r in %r" % (k, self.d)
             return self.outer.get(k)
-        raise KeyError, self.d
+        raise KeyError, (self.d, self.outer, k)
 
     def set(self, k, v):
-        if isinstance(k, MalAtom):
+        if isinstance(k, MalSymbol):
             k = k.name
         self.d[k] = v
