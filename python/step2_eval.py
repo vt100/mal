@@ -1,64 +1,56 @@
-import sys, traceback
-import mal_readline
-import mal_types as types
-import reader, printer
+import reader
+from reader import read_form
+from mal_types import *
 
-# read
-def READ(str):
-    return reader.read_str(str)
 
-# eval
+repl_env = {'+': lambda a,b: a+b,
+            '-': lambda a,b: a-b,
+            '*': lambda a,b: a*b,
+            '/': lambda a,b: int(a/b)}
+
 def eval_ast(ast, env):
-    if types._symbol_Q(ast):
-        try:
-            return env[ast]
-        except:
-            raise Exception("'" + ast + "' not found")
-    elif types._list_Q(ast):
-        return types._list(*map(lambda a: EVAL(a, env), ast))
-    elif types._vector_Q(ast):
-        return types._vector(*map(lambda a: EVAL(a, env), ast))
-    elif types._hash_map_Q(ast):
-        keyvals = []
-        for k in ast.keys():
-            keyvals.append(EVAL(k, env))
-            keyvals.append(EVAL(ast[k], env))
-        return types._hash_map(*keyvals)
+    if isinstance(ast, MalAtom):
+        #print "env lookup:", ast.name
+        return env[ast.name]
+    elif isinstance(ast, MalList):
+        print "eval list"
+
+        # Evaluate form for function application
+        new_list = MalList()
+        for i in ast.lst:
+            new_list.append(eval_ast(i, env))
+        return APPLY(new_list)
     else:
-        return ast  # primitive value, return unchanged
+        return ast
 
-def EVAL(ast, env):
-        #print("EVAL %s" % printer._pr_str(ast))
-        if not types._list_Q(ast):
-            return eval_ast(ast, env)
+def APPLY(lst):
+    #print "func apply", lst, type(lst.lst[0])
+    return lst.first()(*lst.rest())
 
-        # apply list
-        if len(ast) == 0: return ast
-        el = eval_ast(ast, env)
-        f = el[0]
-        return f(*el[1:])
+def EVAL(x, env):
+    if isinstance(x, MalList):
+        if x.length() == 0:
+            return x
+        else:
+            return eval_ast(x, env)
+    return x
 
-# print
-def PRINT(exp):
-    return printer._pr_str(exp)
+def READ(x):
+    r = reader.Reader(x)
+    out = read_form(r)
+    return out
 
-# repl
-repl_env = {} 
-def REP(str):
-    return PRINT(EVAL(READ(str), repl_env))
+def PRINT(x):
+    print x
 
-repl_env['+'] = lambda a,b: a+b
-repl_env['-'] = lambda a,b: a-b
-repl_env['*'] = lambda a,b: a*b
-repl_env['/'] = lambda a,b: int(a/b)
+def rep():
+    while True:
+        try:
+            i = raw_input("user> ")
+        except EOFError:
+            break
+        if len(i) == 0:
+            break
+        PRINT(EVAL(READ(i), env=repl_env))
 
-# repl loop
-while True:
-    try:
-        line = mal_readline.readline("user> ")
-        if line == None: break
-        if line == "": continue
-        print(REP(line))
-    except reader.Blank: continue
-    except Exception as e:
-        print("".join(traceback.format_exception(*sys.exc_info())))
+rep()

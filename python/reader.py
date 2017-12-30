@@ -1,110 +1,73 @@
+from mal_types import *
 import re
-from mal_types import (_symbol, _keyword, _list, _vector, _hash_map, _s2u, _u)
+tre = re.compile(r"""[\s,]*(~@|[\[\]{}()'`~^@]|"(?:[\\].|[^\\"])*"?|;.*|[^\s\[\]{}()'"`@,;]+)""")
 
-class Blank(Exception): pass
+def tokenize(s):
+    return [t for t in re.findall(tre, s) if t[0] != ';']
 
-class Reader():
-    def __init__(self, tokens, position=0):
-        self.tokens = tokens
-        self.position = position
-
-    def next(self):
-        self.position += 1
-        return self.tokens[self.position-1]
+class Reader(object):
+    def __init__(self, txt):
+#        self.pattern = r'[\s,]*(~@|[\[\]{}()'`~^@]|"(?:\\.|[^\\"])*"|;.*|[^\s\[\]{}('"`,;)]*)'
+        self.txt = txt
+        self.tokens = tokenize(txt)
+        self.idx = 0
 
     def peek(self):
-        if len(self.tokens) > self.position:
-            return self.tokens[self.position]
-        else:
+        if self.idx >= len(self.tokens):
             return None
+        return self.tokens[self.idx]
 
-def tokenize(str):
-    tre = re.compile(r"""[\s,]*(~@|[\[\]{}()'`~^@]|"(?:[\\].|[^\\"])*"?|;.*|[^\s\[\]{}()'"`@,;]+)""");
-    return [t for t in re.findall(tre, str) if t[0] != ';']
+    def next(self):
+        if self.idx >= len(self.tokens):
+            return None
+        res = self.tokens[self.idx]
+        self.idx += 1
+        return res
 
-def _unescape(s):
-    return s.replace('\\\\', _u('\u029e')).replace('\\"', '"').replace('\\n', '\n').replace(_u('\u029e'), '\\')
 
-def read_atom(reader):
-    int_re = re.compile(r"-?[0-9]+$")
-    float_re = re.compile(r"-?[0-9][0-9.]*$")
-    token = reader.next()
-    if re.match(int_re, token):     return int(token)
-    elif re.match(float_re, token): return int(token)
-    elif token[0] == '"':
-        if token[-1] == '"':        return _s2u(_unescape(token[1:-1]))
-        else:                       raise Exception("expected '\"', got EOF")
-    elif token[0] == ':':           return _keyword(token[1:])
-    elif token == "nil":            return None
-    elif token == "true":           return True
-    elif token == "false":          return False
-    else:                           return _symbol(token)
-
-def read_sequence(reader, typ=list, start='(', end=')'):
-    ast = typ()
-    token = reader.next()
-    if token != start: raise Exception("expected '" + start + "'")
-
-    token = reader.peek()
-    while token != end:
-        if not token: raise Exception("expected '" + end + "', got EOF")
-        ast.append(read_form(reader))
-        token = reader.peek()
-    reader.next()
-    return ast
-
-def read_hash_map(reader):
-    lst = read_sequence(reader, list, '{', '}')
-    return _hash_map(*lst)
-
-def read_list(reader):
-    return read_sequence(reader, _list, '(', ')')
-
-def read_vector(reader):
-    return read_sequence(reader, _vector, '[', ']')
+def read_str(s):
+    r = Reader(s)
+    read_form(r)
 
 def read_form(reader):
-    token = reader.peek()
-    # reader macros/transforms
-    if token[0] == ';':
-        reader.next()
-        return None
-    elif token == '\'':
-        reader.next()
-        return _list(_symbol('quote'), read_form(reader))
-    elif token == '`':
-        reader.next()
-        return _list(_symbol('quasiquote'), read_form(reader))
-    elif token == '~':
-        reader.next()
-        return _list(_symbol('unquote'), read_form(reader))
-    elif token == '~@':
-        reader.next()
-        return _list(_symbol('splice-unquote'), read_form(reader))
-    elif token == '^':
-        reader.next()
-        meta = read_form(reader)
-        return _list(_symbol('with-meta'), read_form(reader), meta)
-    elif token == '@':
-        reader.next()
-        return _list(_symbol('deref'), read_form(reader))
+    fst = reader.peek()
 
-    # list
-    elif token == ')': raise Exception("unexpected ')'")
-    elif token == '(': return read_list(reader)
+    parsers = {'(': read_list,
+               '[': read_vector}
 
-    # vector
-    elif token == ']': raise Exception("unexpected ']'");
-    elif token == '[': return read_vector(reader);
+    func = parsers.get(fst, read_atom)
+    return func(reader)
 
-    # hash-map
-    elif token == '}': raise Exception("unexpected '}'");
-    elif token == '{': return read_hash_map(reader);
+def read_list(reader):
+    assert reader.next() == "("
+    res = MalList()
+    while reader.peek() and reader.peek()[0] != ")":
+        item = read_form(reader)
+        res.append(item)
+    close_bracket = reader.next()
+    if close_bracket is None:
+        return "EOF"
+    assert close_bracket == ")", reader.tokens
+    return res
 
-    # atom
-    else:              return read_atom(reader);
+def read_vector(reader):
+    assert reader.next() == "["
+    res = MalVector()
+    while reader.peek() and reader.peek()[0] != "]":
+        item = read_form(reader)
+        res.append(item)
+    close_bracket = reader.next()
+    if close_bracket is None:
+        return "EOF"
+    assert close_bracket == "]", reader.tokens
+    return res
 
-def read_str(str):
-    tokens = tokenize(str)
-    if len(tokens) == 0: raise Blank("Blank Line")
-    return read_form(Reader(tokens))
+def read_atom(reader):
+    token = reader.next()
+    if token is None:
+        return MalNone
+
+    if token[0] in "0123456789":
+        return int(token)
+
+    return MalAtom(token)

@@ -1,75 +1,85 @@
-import sys, traceback
-import mal_readline
-import mal_types as types
-import reader, printer
+import traceback
+import reader
+from reader import read_form
+from mal_types import *
 from env import Env
 
-# read
-def READ(str):
-    return reader.read_str(str)
-
-# eval
-def eval_ast(ast, env):
-    if types._symbol_Q(ast):
-        return env.get(ast)
-    elif types._list_Q(ast):
-        return types._list(*map(lambda a: EVAL(a, env), ast))
-    elif types._vector_Q(ast):
-        return types._vector(*map(lambda a: EVAL(a, env), ast))
-    elif types._hash_map_Q(ast):
-        keyvals = []
-        for k in ast.keys():
-            keyvals.append(EVAL(k, env))
-            keyvals.append(EVAL(ast[k], env))
-        return types._hash_map(*keyvals)
-    else:
-        return ast  # primitive value, return unchanged
-
-def EVAL(ast, env):
-        #print("EVAL %s" % printer._pr_str(ast))
-        if not types._list_Q(ast):
-            return eval_ast(ast, env)
-
-        # apply list
-        if len(ast) == 0: return ast
-        a0 = ast[0]
-
-        if "def!" == a0:
-            a1, a2 = ast[1], ast[2]
-            res = EVAL(a2, env)
-            return env.set(a1, res)
-        elif "let*" == a0:
-            a1, a2 = ast[1], ast[2]
-            let_env = Env(env)
-            for i in range(0, len(a1), 2):
-                let_env.set(a1[i], EVAL(a1[i+1], let_env))
-            return EVAL(a2, let_env)
-        else:
-            el = eval_ast(ast, env)
-            f = el[0]
-            return f(*el[1:])
-
-# print
-def PRINT(exp):
-    return printer._pr_str(exp)
-
-# repl
 repl_env = Env()
-def REP(str):
-    return PRINT(EVAL(READ(str), repl_env))
 
-repl_env.set(types._symbol('+'), lambda a,b: a+b)
-repl_env.set(types._symbol('-'), lambda a,b: a-b)
-repl_env.set(types._symbol('*'), lambda a,b: a*b)
-repl_env.set(types._symbol('/'), lambda a,b: int(a/b))
+for (k,v) in {'+': lambda a,b: a+b,
+              '-': lambda a,b: a-b,
+              '*': lambda a,b: a*b,
+              '/': lambda a,b: int(a/b)}.items():
+    repl_env.set(k,v)
 
-# repl loop
-while True:
-    try:
-        line = mal_readline.readline("user> ")
-        if line == None: break
-        if line == "": continue
-        print(REP(line))
-    except reader.Blank: continue
-    except Exception as e:
-        print("".join(traceback.format_exception(*sys.exc_info())))
+def eval_ast(ast, env):
+    if isinstance(ast, MalAtom):
+        #print "env lookup:", ast.name
+        return env.get(ast.name)
+    elif isinstance(ast, MalVector):
+        new_vector = MalVector()
+        for i in ast.lst:
+            new_vector.append(eval_ast(i, env))
+        return new_vector
+    elif isinstance(ast, MalList):
+        #print "eval list"
+        fst_ = ast[0]
+        # print type(fst_)
+        fst = fst_.name
+        if fst == 'def!':
+            v = eval_ast(ast[2], env)
+            env.set(ast[1].name, v)
+            return v
+        elif fst == 'let*':
+            new_env = Env(outer=env)
+            bind_lst = ast[1]
+            for i in range(bind_lst.length()/2):
+                k = bind_lst[2*i]
+                v = eval_ast(bind_lst[2*i+1], new_env)
+                #print "setting %r=%r" % (k,v)
+                new_env.set(k, v)
+            return eval_ast(ast[2], new_env)
+        else:
+            # Evaluate form for function application
+            new_list = MalList()
+            for i in ast.lst:
+                new_list.append(eval_ast(i, env))
+            return APPLY(new_list)
+    else:
+        return ast
+
+def APPLY(lst):
+    #print "func apply", lst, type(lst.lst[0])
+    return lst.first()(*lst.rest())
+
+def EVAL(x, env):
+    if isinstance(x, MalList):
+        if x.length() == 0:
+            return x
+        else:
+            return eval_ast(x, env)
+
+    return eval_ast(x, env)
+
+def READ(x):
+    r = reader.Reader(x)
+    out = read_form(r)
+    return out
+
+def PRINT(x):
+    print x
+
+def rep():
+    while True:
+        try:
+            i = raw_input("user> ")
+        except EOFError:
+            break
+        if len(i) == 0:
+            break
+        try:
+            PRINT(EVAL(READ(i), env=repl_env))
+        except:
+            traceback.print_exc()
+
+rep()
