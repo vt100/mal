@@ -33,10 +33,10 @@ class MalNil(MalType):
         return "nil"
 
 class MalBool(MalType):
-    def __init__(self, val):
+    def __init__(self, value):
         self.value = value
     def __repr__(self):
-        return str(self.value)
+        return str(self.value).lower()
 
 class MalSymbol(MalType):
     def __init__(self, name):
