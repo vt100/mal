@@ -46,8 +46,10 @@ def EVAL(x, env):
 
         if fst == 'def!':
             v = EVAL(x[2], env)
-            env.set(x[1].name, v)
+            # env.set(x[1].name, v)
+            repl_env.set(x[1].name, v)
             return v
+
         elif fst == 'let*':
             new_env = Env(outer=env)
             bind_lst = x[1]
@@ -83,12 +85,18 @@ def EVAL(x, env):
         elif fst == 'fn*':
             bind_list = x[1]
             body = x[2]
+
             def func(*args):
                 new_env = Env(outer=env)
                 for (k,v) in zip(bind_list, args):
                     new_env.set(k, v)
                 return EVAL(body, new_env)
-            return func
+
+            return MalLambda(body=body,
+                             bind_list=bind_list,
+                             env=env,
+                             fn=func)
+            # return func
 
         else:
             # Evaluate form for function application
@@ -102,7 +110,7 @@ def EVAL(x, env):
                 return APPLY(f, args)
             else:
                 new_env = Env(outer=f.env)
-                for (k,v) in zip(f.bind_lst, args):
+                for (k,v) in zip(f.bind_list, args):
                     new_env.set(k, v)
 
                 x = f.body

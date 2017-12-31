@@ -67,7 +67,10 @@ def read_atom(reader):
     if token is None:
         return MalNone
 
-    if token[0] in "-0123456789":
+    if token[0] in "0123456789":
+        return int(token)
+
+    if len(token) > 1 and token[0] == '-' and token[1] in "0123456789":
         return int(token)
 
     if token == "true":
