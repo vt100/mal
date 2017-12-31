@@ -33,62 +33,80 @@ def APPLY(f, args):
     return f(*args)
 
 def EVAL(x, env):
-    if type(x) != MalList: # not isinstance(x, MalList):
-        return eval_ast(x, env)
+    while True:
+        if type(x) != MalList: # not isinstance(x, MalList):
+            return eval_ast(x, env)
 
-    if x.length() == 0:
-        return x
+        if x.length() == 0:
+            return x
 
-    fst = x[0]
-    if isinstance(fst, MalSymbol):
-        fst = fst.name
+        fst = x[0]
+        if isinstance(fst, MalSymbol):
+            fst = fst.name
 
-    if fst == 'def!':
-        v = EVAL(x[2], env)
-        env.set(x[1].name, v)
-        return v
-    elif fst == 'let*':
-        new_env = Env(outer=env)
-        bind_lst = x[1]
-        for i in range(bind_lst.length()/2):
-            k = bind_lst[2*i]
-            v = EVAL(bind_lst[2*i+1], new_env)
-            #print "setting %r=%r" % (k,v)
-            new_env.set(k, v)
-        return EVAL(x[2], new_env)
-    elif fst == 'do':
-        for i in x.rest():
-            result = EVAL(i, env)
-        return result
-    elif fst == 'if':
-        test = EVAL(x[1], env)
-        if isinstance(test, MalBool):
-            test = test.value
-        elif isinstance(test, MalNil):
-            test = False
-        else:
-            test = True
-        body = x[2] if test else x[3]
-        return EVAL(body, env)
-    elif fst == 'fn*':
-        bind_list = x[1]
-        body = x[2]
-        def func(*args):
+        if fst == 'def!':
+            v = EVAL(x[2], env)
+            env.set(x[1].name, v)
+            return v
+        elif fst == 'let*':
             new_env = Env(outer=env)
-            for (k,v) in zip(bind_list, args):
+            bind_lst = x[1]
+            for i in range(bind_lst.length()/2):
+                k = bind_lst[2*i]
+                v = EVAL(bind_lst[2*i+1], new_env)
+                #print "setting %r=%r" % (k,v)
                 new_env.set(k, v)
-            return EVAL(body, new_env)
-        return func
 
-    else:
-        # Evaluate form for function application
-        new_list = MalList()
-        for i in x.lst:
-            new_list.append(EVAL(i, env))
-        f = new_list.first()
-        args = new_list.rest()
-        return APPLY(f, args)
+            env = new_env
+            x = x[2]
+            continue
 
+        elif fst == 'do':
+            stuff = x.rest()
+            for i in stuff[:-1]:
+                _ = EVAL(i, env)
+            x = stuff[-1]
+            continue
+
+        elif fst == 'if':
+            test = EVAL(x[1], env)
+            if isinstance(test, MalBool):
+                test = test.value
+            elif isinstance(test, MalNil):
+                test = False
+            else:
+                test = True
+            body = x[2] if test else x[3]
+            x = body
+            continue
+
+        elif fst == 'fn*':
+            bind_list = x[1]
+            body = x[2]
+            def func(*args):
+                new_env = Env(outer=env)
+                for (k,v) in zip(bind_list, args):
+                    new_env.set(k, v)
+                return EVAL(body, new_env)
+            return func
+
+        else:
+            # Evaluate form for function application
+            new_list = MalList()
+            for i in x.lst:
+                new_list.append(EVAL(i, env))
+            f = new_list.first()
+            args = new_list.rest()
+
+            if isinstance(f, types.FunctionType):
+                return APPLY(f, args)
+            else:
+                new_env = Env(outer=f.env)
+                for (k,v) in zip(f.bind_lst, args):
+                    new_env.set(k, v)
+
+                x = f.body
+                env = new_env
 
 def READ(x):
     r = reader.Reader(x)

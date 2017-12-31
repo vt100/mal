@@ -28,6 +28,19 @@ class MalVector(MalList):
 class MalAtom(MalType):
     pass
 
+class MalLambda(MalType):
+    def __init__(self, body, bind_list, env, fn):
+        self.body = body
+        self.bind_list = bind_list
+        self.env = env
+        def func(*args):
+            new_env = Env(outer=env)
+            for (k,v) in zip(bind_list, args):
+                new_env.set(k, v)
+                return EVAL(body, new_env)
+        self.fn = func
+
+
 class MalNil(MalType):
     def __repr__(self):
         return "nil"
