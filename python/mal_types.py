@@ -29,11 +29,14 @@ class MalAtom(MalType):
     pass
 
 class MalNil(MalType):
-    pass
+    def __repr__(self):
+        return "nil"
 
 class MalBool(MalType):
     def __init__(self, val):
         self.value = value
+    def __repr__(self):
+        return str(self.value)
 
 class MalSymbol(MalType):
     def __init__(self, name):

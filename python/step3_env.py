@@ -3,6 +3,7 @@ import reader
 from reader import read_form
 from mal_types import *
 from env import Env
+import types
 
 repl_env = Env()
 
@@ -24,9 +25,9 @@ def eval_ast(ast, env):
     else:
         return ast
 
-def APPLY(lst):
+def APPLY(f, args):
     #print "func apply", lst, type(lst.lst[0])
-    return lst.first()(*lst.rest())
+    return f(*args)
 
 def EVAL(x, env):
     if type(x) != MalList: # not isinstance(x, MalList):
@@ -35,8 +36,9 @@ def EVAL(x, env):
     if x.length() == 0:
         return x
 
-    fst_ = x[0]
-    fst = fst_.name
+    fst = x[0]
+    if isinstance(fst, MalSymbol):
+        fst = fst.name
 
     if fst == 'def!':
         v = EVAL(x[2], env)
@@ -51,12 +53,38 @@ def EVAL(x, env):
             #print "setting %r=%r" % (k,v)
             new_env.set(k, v)
         return EVAL(x[2], new_env)
+    elif fst == 'do':
+        for i in x.rest():
+            result = EVAL(i, env)
+        return result
+    elif fst == 'if':
+        test = EVAL(x[1], env)
+        if isinstance(test, MalBool):
+            test = test.value
+        elif isinstance(test, MalNil):
+            test = False
+        else:
+            test = True
+        body = x[2] if test else x[3]
+        return EVAL(body, env)
+    elif fst == 'fn*':
+        bind_list = x[1]
+        body = x[2]
+        def func(*args):
+            new_env = Env(outer=env)
+            for (k,v) in zip(bind_list, args):
+                new_env.set(k, v)
+            return EVAL(body, new_env)
+        return func
+
     else:
         # Evaluate form for function application
         new_list = MalList()
         for i in x.lst:
             new_list.append(EVAL(i, env))
-        return APPLY(new_list)
+        f = new_list.first()
+        args = new_list.rest()
+        return APPLY(f, args)
 
 
 def READ(x):
