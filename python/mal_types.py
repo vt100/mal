@@ -37,7 +37,7 @@ class MalLambda(MalType):
             new_env = Env(outer=env)
             for (k,v) in zip(bind_list, args):
                 new_env.set(k, v)
-                return EVAL(body, new_env)
+            return EVAL(body, new_env)
         self.fn = func
 
 
